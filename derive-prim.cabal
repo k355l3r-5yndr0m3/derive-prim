@@ -11,7 +11,7 @@ license-file:       LICENSE
 author:             k355l3r-5yndr0m3
 maintainer:         hoanghung17jan@gmail.com
 -- copyright:
-category:           Data
+category:           Data, Generics, Development
 build-type:         Simple
 extra-doc-files:    CHANGELOG.md
                     README.md
