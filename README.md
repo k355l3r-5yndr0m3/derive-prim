@@ -40,6 +40,10 @@ data Struct = Struct
   }
 ```
 The specific offset of a field can be queried by `offsetOf @STRUCT_TYPE @RECORD_NAME`.
+```
+memberOffset :: Int
+memberOffset = offsetOf @Struct @"someField"
+```
 ## Details
 Members are layout in memory according to their order. Members placed higher will have a lower memory address. 
 Each member's offset will be the lowest offset respecting its alignment such that no overlapping between previous members occur.
