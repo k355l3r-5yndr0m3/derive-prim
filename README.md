@@ -13,6 +13,10 @@ data Struct = Struct
   , membFloat :: Float
   } derive (Generic)
     derive (Prim, PrimUnaligned) via (GenericPrim Struct)
+
+data OtherStruct = OtherStruct Int Word Float Double Char
+    derive (Generic) 
+    derive (Prim, PrimUnaligned) via (GenericPrim OtherStruct)
 ```
 All members must implement both an instance of Prim and an instance of PrimUnaligned. Nested structs are also allowed as long as they implement the nessisary instances.
 ```
@@ -35,6 +39,7 @@ data Struct = Struct
   , someOtherField :: Packed SomeOtherType {- This field will have an alignment of 1 bytes #-}
   }
 ```
+The specific offset of a field can be queried by `offsetOf @STRUCT_TYPE @RECORD_NAME`.
 ## Details
 Members are layout in memory according to their order. Members placed higher will have a lower memory address. 
 Each member's offset will be the lowest offset respecting its alignment such that no overlapping between previous members occur.
