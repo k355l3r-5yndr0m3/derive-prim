@@ -1,6 +1,7 @@
 {-# LANGUAGE LexicalNegation #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE DataKinds #-}
 module Main (main) where
 import Control.Monad
 import Control.Monad.ST
@@ -27,6 +28,14 @@ data Struct3 = Struct3 Word16 (Packed Struct2)
   deriving (Generic, Eq)
   deriving (Prim, PrimUnaligned) via (GenericPrim Struct3)
 
+data Struct4 = Struct4
+  { membA :: Int
+  , membB :: Float
+  , membC :: Int
+  , membD :: Int8
+  } deriving (Generic, Eq) 
+    deriving (Prim, PrimUnaligned) via (GenericPrim Struct4)
+
 testPrim :: (Eq a, Prim a) => [a] -> Bool
 testPrim list = ba
   where listLen = length list
@@ -52,4 +61,4 @@ main = do
                    , Struct3 1 $ Align $ Struct2 02 $ Struct1 '5' -32 99.0 33
                    , Struct3 6 $ Align $ Struct2 03 $ Struct1 '2' 902 3.02 0
                    ]) exitFailure
-
+  print (offsetOf @Struct4 @"membD")

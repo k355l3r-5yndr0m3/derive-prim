@@ -10,6 +10,7 @@
 module Data.Primitive.Generic
   ( Align(..), Packed
   , GenericPrim(..)
+  , offsetOf
   ) where
 import Data.Semigroup
 import Data.Functor.Identity
@@ -40,6 +41,9 @@ type family ValidAlign (n :: Nat) :: Constraint where
   ValidAlign 0 = TypeError (Text "Alignment must be strictly possitive (> 0)")
   ValidAlign _ = ()
 
+-- |Derive Prim and PrimUnaligned instances
+newtype GenericPrim a = GenericPrim a
+
 instance (ValidAlign a, KnownNat a, Prim t) => Prim (Align a t) where
   alignmentOfType# _ = align#
     where !(I# align#) = fromIntegral (natVal @a Proxy)
@@ -56,9 +60,6 @@ instance (ValidAlign a, KnownNat a, Prim t) => Prim (Align a t) where
     in  (# state'#, Align value #)
   writeOffAddr# addr# idx# (Align value) = writeOffAddr# addr# idx# value
 
--- |Derive Prim and PrimUnaligned instances
-newtype GenericPrim a = GenericPrim a
-
 -- TODO: Implement a plugin to make the performance not terrible
 instance (Generic a, DerivePrim (Rep a)) => PrimUnaligned (GenericPrim a) where
   indexUnalignedByteArray# ba# offs# = GenericPrim (to (implIndexUnalignedByteArray# (membOffsets @(Rep a)) ba# offs#))
@@ -66,6 +67,36 @@ instance (Generic a, DerivePrim (Rep a)) => PrimUnaligned (GenericPrim a) where
     let !(# state'#, value #) = implReadUnalignedByteArray# (membOffsets @(Rep a)) ba# offs# state#
     in  (# state'#, GenericPrim (to value) #)
   writeUnalignedByteArray# ba# offs# (GenericPrim (from -> value)) = implWriteUnalignedByteArray# (membOffsets @(Rep a)) ba# offs# value
+
+type family Or (a :: Bool) (b :: Bool) :: Bool where
+  Or False False = False
+  Or _     _     = True
+
+type family HasOffsetOf t (s :: Symbol) :: Bool where
+  HasOffsetOf (f :*: g) s = Or (HasOffsetOf f s) (HasOffsetOf g s)
+  HasOffsetOf (M1 _ (MetaSel (Just s) _ _ _) _) s = True
+  HasOffsetOf (M1 _ _ f) s = HasOffsetOf f s
+  HasOffsetOf _ _ = False
+
+type family Assert (s :: Symbol) (c :: Bool) :: Constraint where
+  Assert _ True  = ()
+  Assert s False = TypeError (Text s)
+
+type family Equal a b :: Bool where
+  Equal a a = True
+  Equal _ _ = False
+
+
+class KnownBool (b :: Bool) where
+  boolVal :: Proxy b -> Bool
+  ifBool  :: a -> a -> Proxy b -> a
+instance KnownBool True where
+  boolVal _ = True
+  ifBool _ a _ = a
+  
+instance KnownBool False where
+  boolVal _ = False
+  ifBool a _ _ = a
 
 instance (Generic a, DerivePrim (Rep a)) => Prim (GenericPrim a) where
   sizeOfType# _ = structSize# @(Rep a) Proxy
@@ -104,6 +135,48 @@ class DerivePrim q where
   implIndexUnalignedOffAddr# :: DeriveTree q p -> Addr# -> q p
   implReadUnalignedOffAddr#  :: DeriveTree q p -> Addr# -> State# s -> (# State# s, q p #)
   implWriteUnalignedOffAddr# :: DeriveTree q p -> Addr# -> q p -> State# s -> State# s
+
+class OffsetOf t (s :: Symbol) where
+  -- | return -1 if does not contain field
+  offsetOf# :: t p -> Int#
+  getInt#   :: t p -> Int#
+
+instance OffsetOf V1 s where
+  offsetOf# _ = -1#
+  getInt#   _ = -1#
+instance OffsetOf U1 s where
+  offsetOf# _ = -1#
+  getInt#   _ = -1#
+
+instance (OffsetOf f s, OffsetOf g s, KnownBool (HasOffsetOf f s), KnownBool (HasOffsetOf g s)) => OffsetOf (f :*: g) s where
+  offsetOf# (f :*: g)
+    | boolVal @(HasOffsetOf f s) Proxy = offsetOf# @_ @s f
+    | boolVal @(HasOffsetOf g s) Proxy = offsetOf# @_ @s g
+    | otherwise     = -1#
+
+  getInt# _ = -1#
+instance OffsetOf (K1 i Int) s where
+  offsetOf# _ = -1#
+  getInt# (K1 (I# offs#)) = offs#
+
+instance OffsetOf c s => OffsetOf (M1 i (MetaSel (Just s') a b d) c) s where
+  offsetOf# (M1 c) = getInt# @_ @s c
+  getInt# (M1 c) = getInt# @_ @s c
+
+instance OffsetOf c s => OffsetOf (M1 i (MetaSel Nothing a b d) c) s where
+  offsetOf# (M1 c) = offsetOf# @_ @s c
+  getInt# (M1 c) = getInt# @_ @s c
+
+instance OffsetOf c s => OffsetOf (M1 i (MetaData a b d e) c) s where
+  offsetOf# (M1 c) = offsetOf# @_ @s c
+  getInt# (M1 c) = getInt# @_ @s c
+
+instance OffsetOf c s => OffsetOf (M1 i (MetaCons a b e) c) s where
+  offsetOf# (M1 c) = offsetOf# @_ @s c
+  getInt# (M1 c) = getInt# @_ @s c
+
+offsetOf :: forall t s. (Generic t, DerivePrim (Rep t), OffsetOf (DeriveTree (Rep t)) s, Assert "Field does not exist" (HasOffsetOf (DeriveTree (Rep t)) s)) => Int
+offsetOf = I# (offsetOf# @_ @s (membOffsets @(Rep t)))
 
 membOffsets :: forall q p. DerivePrim q => DeriveTree q p
 membOffsets = tree
