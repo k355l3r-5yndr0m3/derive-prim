@@ -1,6 +1,6 @@
 cabal-version:      3.4
 name:               derive-prim
-version:            0.1.0.0
+version:            0.1.0.1
 synopsis:           Derive Prim and PrimUnaligned
 description:        This package provides the newtype `GenericPrim` which allows user to derive instances for Prim and PrimUnaligned
                     through the DerivingVia extension.
